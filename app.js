@@ -1,6 +1,5 @@
 const STORAGE_KEY = "techionik_project_notes_v3"
 const LEGACY_STORAGE_KEY = "pt_v2"
-const ACCESS_KEY_STORAGE_KEY = "techionik_project_tracker_access_key"
 const CLOUD_ENDPOINT = "/api/projects"
 const SYNC_DEBOUNCE_MS = 700
 const POLL_INTERVAL_MS = 10000
@@ -17,7 +16,6 @@ const state = {
   },
   noteEditor: null,
   sync: {
-    accessKey: "",
     initialized: false,
     dirty: false,
     saveTimer: null,
@@ -25,7 +23,6 @@ const state = {
     lastRemoteUpdatedAt: 0,
     syncing: false,
     setupMissing: false,
-    authEnabled: false,
     status: "loading",
     message: "Connecting cloud sync..."
   }
@@ -61,7 +58,6 @@ const els = {
 
 /* INIT */
 state.projects = loadProjects()
-state.sync.accessKey = readStoredAccessKey()
 
 render()
 attachEventListeners()
@@ -392,8 +388,6 @@ async function bootstrapCloudSync(options = {}) {
 
     state.sync.initialized = true
     state.sync.lastRemoteUpdatedAt = Number(payload.updatedAt || 0)
-    state.sync.authEnabled = Boolean(payload.authEnabled)
-
     const remoteProjects = normalizeProjects(payload.projects)
     const localNewest = getProjectsNewestTimestamp(state.projects)
     const remoteNewest = getProjectsNewestTimestamp(remoteProjects)
@@ -427,17 +421,8 @@ async function fetchCloudDocument({ interactive = false } = {}) {
   }
 
   if (result.status === 401) {
-    if (!interactive) {
-      setSyncStatus("locked", "Enter the shared sync key on this device to load cloud data.")
-      return null
-    }
-
-    const hasKey = await promptForAccessKey({ force: true })
-    if (!hasKey) {
-      return null
-    }
-
-    return fetchCloudDocument({ interactive: false })
+    setSyncStatus("error", "Cloud sync authorization failed.")
+    return null
   }
 
   if (result.status === 503 && result.payload && result.payload.code === "BLOB_NOT_CONFIGURED") {
@@ -479,12 +464,8 @@ async function saveCloudSnapshot({ reason = "update", retry = false } = {}) {
   }
 
   if (result.status === 401 && !retry) {
-    const hasKey = await promptForAccessKey({ force: true })
-    if (!hasKey) {
-      return false
-    }
-
-    return saveCloudSnapshot({ reason, retry: true })
+    setSyncStatus("error", "Cloud sync authorization failed.")
+    return false
   }
 
   if (result.status === 503 && result.payload && result.payload.code === "BLOB_NOT_CONFIGURED") {
@@ -500,7 +481,6 @@ async function saveCloudSnapshot({ reason = "update", retry = false } = {}) {
 
   state.sync.dirty = false
   state.sync.lastRemoteUpdatedAt = Number(result.payload.updatedAt || Date.now())
-  state.sync.authEnabled = Boolean(result.payload.authEnabled)
   setSyncStatus("synced", "All changes are synced to cloud and available on your other devices.")
   return true
 }
@@ -563,32 +543,6 @@ function scheduleCloudSave() {
   }, SYNC_DEBOUNCE_MS)
 }
 
-async function promptForAccessKey({ force = false } = {}) {
-  if (state.sync.accessKey && !force) {
-    return true
-  }
-
-  const value = window.prompt(
-    "Enter the shared sync key for this board. Use the same key on desktop and mobile.",
-    state.sync.accessKey || ""
-  )
-
-  if (!value || !value.trim()) {
-    clearStoredAccessKey()
-    setSyncStatus("locked", "Cloud sync is locked until you enter the shared sync key.")
-    return false
-  }
-
-  state.sync.accessKey = value.trim()
-  localStorage.setItem(ACCESS_KEY_STORAGE_KEY, state.sync.accessKey)
-  return true
-}
-
-function clearStoredAccessKey() {
-  state.sync.accessKey = ""
-  localStorage.removeItem(ACCESS_KEY_STORAGE_KEY)
-}
-
 async function requestCloud(method, body) {
   try {
     const headers = {
@@ -598,10 +552,6 @@ async function requestCloud(method, body) {
 
     if (body) {
       headers["Content-Type"] = "application/json"
-    }
-
-    if (state.sync.accessKey) {
-      headers["x-project-tracker-key"] = state.sync.accessKey
     }
 
     const response = await fetch(CLOUD_ENDPOINT, {
@@ -616,10 +566,6 @@ async function requestCloud(method, body) {
       payload = await response.json()
     } catch (error) {
       payload = null
-    }
-
-    if (response.status === 401) {
-      clearStoredAccessKey()
     }
 
     return {
@@ -1017,14 +963,6 @@ function safeRead(key) {
   } catch (error) {
     console.error(`Unable to read ${key}`, error)
     return null
-  }
-}
-
-function readStoredAccessKey() {
-  try {
-    return localStorage.getItem(ACCESS_KEY_STORAGE_KEY) || ""
-  } catch (error) {
-    return ""
   }
 }
 
