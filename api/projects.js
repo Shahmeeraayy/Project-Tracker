@@ -21,21 +21,11 @@ export default async function handler(req, res) {
     return
   }
 
-  if (!isAuthorized(req)) {
-    res.status(401).json({
-      ok: false,
-      code: "AUTH_REQUIRED",
-      message: "A valid project tracker sync key is required."
-    })
-    return
-  }
-
   try {
     if (req.method === "GET") {
       const latest = await readLatestSnapshot()
       res.status(200).json({
         ok: true,
-        authEnabled: Boolean(process.env.PROJECT_TRACKER_ACCESS_KEY),
         projects: latest ? latest.document.projects : [],
         updatedAt: latest ? latest.document.updatedAt : 0
       })
@@ -62,7 +52,6 @@ export default async function handler(req, res) {
 
       res.status(200).json({
         ok: true,
-        authEnabled: Boolean(process.env.PROJECT_TRACKER_ACCESS_KEY),
         projects: document.projects,
         updatedAt: document.updatedAt
       })
@@ -82,16 +71,6 @@ export default async function handler(req, res) {
       message: "Unable to read or write project data right now."
     })
   }
-}
-
-function isAuthorized(req) {
-  const expected = process.env.PROJECT_TRACKER_ACCESS_KEY
-  if (!expected) {
-    return true
-  }
-
-  const provided = req.headers["x-project-tracker-key"]
-  return typeof provided === "string" && provided === expected
 }
 
 async function readLatestSnapshot() {
