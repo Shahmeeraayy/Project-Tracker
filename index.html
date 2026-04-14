@@ -446,6 +446,35 @@
       letter-spacing: -0.02em;
     }
 
+    .results-meta-stack {
+      display: grid;
+      justify-items: end;
+      gap: 6px;
+      text-align: right;
+    }
+
+    .sync-status {
+      font-size: 0.88rem;
+      color: var(--soft);
+    }
+
+    .sync-status[data-state="synced"] {
+      color: var(--accent-strong);
+    }
+
+    .sync-status[data-state="saving"] {
+      color: var(--info);
+    }
+
+    .sync-status[data-state="local"] {
+      color: var(--warning);
+    }
+
+    .sync-status[data-state="error"],
+    .sync-status[data-state="locked"] {
+      color: var(--danger);
+    }
+
     .project-grid {
       margin-top: 18px;
       display: grid;
@@ -906,6 +935,11 @@
         flex-direction: column;
         align-items: flex-start;
       }
+
+      .results-meta-stack {
+        justify-items: start;
+        text-align: left;
+      }
     }
 
     @media (max-width: 620px) {
@@ -1110,7 +1144,10 @@
       <div>
         <strong id="resultsTitle">0 projects shown</strong>
       </div>
-      <p id="resultsMeta">Everything here is stored locally on this device.</p>
+      <div class="results-meta-stack">
+        <p id="resultsMeta">Local cache active while cloud sync connects.</p>
+        <p class="sync-status" id="syncStatus" data-state="loading">Connecting cloud sync...</p>
+      </div>
     </section>
 
     <section class="project-grid" id="projectGrid" aria-live="polite"></section>
@@ -1149,7 +1186,7 @@
       </div>
     </section>
   </div>
-  <script>
+  <script type="text/plain" id="legacy-inline-script">
     const STORAGE_KEY = "techionik_project_notes_v3";
     const LEGACY_STORAGE_KEY = "pt_v2";
 
@@ -2014,5 +2051,6 @@
         .replace(/'/g, "&#39;");
     }
   </script>
+  <script src="./app.js"></script>
 </body>
 </html>
